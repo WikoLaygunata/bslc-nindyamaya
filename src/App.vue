@@ -1,7 +1,11 @@
-<script setup></script>
+<script setup>
+import { NConfigProvider, NMessageProvider } from 'naive-ui'
+</script>
 
 <template>
-  <h1 class="text-3xl font-bold text-sky-500 underline">Tailwind v4 + Vue is live!</h1>
+  <n-config-provider>
+    <n-message-provider>
+      <router-view />
+    </n-message-provider>
+  </n-config-provider>
 </template>
-
-<style scoped></style>
