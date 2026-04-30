@@ -61,7 +61,9 @@ const menuOptions = computed(() => {
 })
 
 const activeKey = computed(() => route.name)
-const roleLabel = computed(() => (props.role ? props.role.toUpperCase() : '-'))
+const roleLabel = computed(() =>
+  props.role ? props.role.charAt(0).toUpperCase() + props.role.slice(1) : '-',
+)
 </script>
 
 <template>

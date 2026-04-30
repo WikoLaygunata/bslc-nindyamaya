@@ -1,6 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+function byRoleComponent(mentorImporter, menteeImporter) {
+  const auth = useAuthStore()
+  return auth.role.value === 'mentor' ? mentorImporter() : menteeImporter()
+}
+
 const routes = [
   {
     path: '/login',
@@ -16,24 +21,32 @@ const routes = [
       {
         path: '',
         name: 'home',
-        component: () => import('@/views/dashboard/HomeView.vue'),
+        component: () =>
+          byRoleComponent(
+            () => import('@/views/dashboard/mentor/HomeView.vue'),
+            () => import('@/views/dashboard/mentee/HomeView.vue')
+          ),
       },
       {
         path: 'my-mentee',
         name: 'my-mentee',
-        component: () => import('@/views/dashboard/MyMenteeView.vue'),
+        component: () => import('@/views/dashboard/mentor/MyMenteeView.vue'),
         meta: { role: 'mentor' },
       },
       {
         path: 'my-mentor',
         name: 'my-mentor',
-        component: () => import('@/views/dashboard/MyMentorView.vue'),
+        component: () => import('@/views/dashboard/mentee/MyMentorView.vue'),
         meta: { role: 'mentee' },
       },
       {
         path: 'mentoring-sessions',
         name: 'mentoring-sessions',
-        component: () => import('@/views/dashboard/MentoringSessionsView.vue'),
+        component: () =>
+          byRoleComponent(
+            () => import('@/views/dashboard/mentor/MentoringSessionsView.vue'),
+            () => import('@/views/dashboard/mentee/MentoringSessionsView.vue')
+          ),
       },
     ],
   },
