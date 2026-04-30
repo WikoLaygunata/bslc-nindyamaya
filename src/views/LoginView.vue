@@ -5,7 +5,7 @@ import { LockClosedOutline, MailOutline } from '@vicons/ionicons5'
 import { NButton, NCard, NForm, NFormItem, NIcon, NInput, NTag, NText, useMessage } from 'naive-ui'
 import { login } from '@/api/api'
 import { useAuthStore } from '@/stores/auth'
-import logoUrl from '@/assets/BSLC-Logo.png'
+import logoUrl from '@/assets/BSLC-logo.png'
 
 const router = useRouter()
 const message = useMessage()
