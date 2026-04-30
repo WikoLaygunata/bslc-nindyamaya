@@ -1,5 +1,5 @@
 <script setup>
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { EllipsisVertical } from '@vicons/ionicons5'
 import {
   NButton,
@@ -28,8 +28,11 @@ const dialog = useDialog()
 const loading = ref(false)
 const submitting = ref(false)
 const sessions = ref([])
+const search = ref('')
 const showModal = ref(false)
+const showDetailModal = ref(false)
 const editingId = ref(null)
+const selectedSession = ref(null)
 
 const form = reactive({
   course_name: '',
@@ -38,58 +41,108 @@ const form = reactive({
   end_time: null,
 })
 
+function formatSchedule(row) {
+  if (!row.start_time || !row.end_time) {
+    return '-'
+  }
+
+  const startDate = new Date(row.start_time)
+  const endDate = new Date(row.end_time)
+  const date = startDate.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+  const startTime = startDate.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  const endTime = endDate.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  return `${date} (${startTime} - ${endTime})`
+}
+
+function handleRowClick(row) {
+  selectedSession.value = row
+  showDetailModal.value = true
+}
+
+function rowProps(row) {
+  return {
+    style: 'cursor: pointer;',
+    onClick: () => handleRowClick(row),
+  }
+}
+
+const filteredSessions = computed(() => {
+  const keyword = search.value.trim().toLowerCase()
+  if (!keyword) {
+    return sessions.value
+  }
+
+  return sessions.value.filter((row) => {
+    const searchable = [row.topic, formatSchedule(row)]
+
+    return searchable.some((value) =>
+      String(value ?? '')
+        .toLowerCase()
+        .includes(keyword),
+    )
+  })
+})
+
 const columns = [
   {
     title: 'No',
     key: 'no',
-    width: 60,
-    render: (_, index) => index + 1,
+    width: 50,
     align: 'center',
+    render: (_, index) => index + 1,
   },
-  { title: 'Course', key: 'topic', width: 220 },
-  { title: 'Platform', key: 'location', width: 140 },
+  {
+    title: 'Course',
+    key: 'topic',
+    width: 220,
+    titleAlign: 'center',
+    sorter: (a, b) => a.topic.localeCompare(b.topic),
+  },
   {
     title: 'Schedule',
     key: 'schedule',
-    width: 200,
-    render: (row) => {
-      if (!row.start_time || !row.end_time) {
-        return '-'
-      }
-
-      const startDate = new Date(row.start_time)
-      const endDate = new Date(row.end_time)
-      const date = startDate.toLocaleDateString()
-      const startTime = startDate.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-      const endTime = endDate.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-      return `${date} (${startTime} - ${endTime})`
-    },
+    titleAlign: 'center',
+    width: 220,
+    sorter: (a, b) => new Date(a.start_time ?? 0).getTime() - new Date(b.start_time ?? 0).getTime(),
+    render: (row) => formatSchedule(row),
+  },
+  {
+    title: 'Platform',
+    key: 'location',
+    width: 160,
+    titleAlign: 'center',
   },
   {
     title: 'Created At',
     key: 'created_at',
-    width: 170,
+    width: 130,
+    titleAlign: 'center',
     render: (row) =>
       row.created_at
-        ? new Date(row.created_at).toLocaleString([], {
-            dateStyle: 'short',
-            timeStyle: 'short',
-            hour12: false,
+        ? new Date(row.created_at).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
           })
         : '-',
   },
   {
     title: 'Attendees',
     key: 'attendance',
-    width: 280,
+    width: 260,
+    titleAlign: 'center',
     render: (row) => {
       if (!row.attendance.length) {
         return '-'
@@ -124,7 +177,8 @@ const columns = [
   {
     title: 'Action',
     key: 'actions',
-    width: 90,
+    align: 'center',
+    width: 80,
     render: (row) =>
       h(
         NDropdown,
@@ -141,7 +195,11 @@ const columns = [
           default: () =>
             h(
               NButton,
-              { size: 'small', tertiary: true },
+              {
+                size: 'small',
+                tertiary: true,
+                onClick: (event) => event.stopPropagation(),
+              },
               {
                 icon: () =>
                   h(NIcon, null, {
@@ -292,11 +350,13 @@ onMounted(fetchSessions)
         <p class="text-sm text-(--grey-color)">Manage mentoring sessions here.</p>
         <n-button type="primary" @click="openCreate">Create Session</n-button>
       </n-space>
+      <n-input v-model:value="search" clearable placeholder="Search course or schedule" />
 
       <n-data-table
         :columns="columns"
-        :data="sessions"
+        :data="filteredSessions"
         :loading="loading"
+        :row-props="rowProps"
         :single-line="false"
         size="small"
         :scroll-x="1100"
@@ -330,5 +390,33 @@ onMounted(fetchSessions)
         <n-button type="primary" :loading="submitting" @click="submitForm">Save</n-button>
       </n-space>
     </n-form>
+  </n-modal>
+
+  <n-modal
+    v-model:show="showDetailModal"
+    preset="card"
+    title="Session Detail"
+    size="small"
+    style="width: min(420px, calc(100vw - 32px))"
+  >
+    <hr class="mb-2" />
+    <div v-if="selectedSession" class="space-y-2 text-sm py-2">
+      <p><strong>Course:</strong> {{ selectedSession.topic || '-' }}</p>
+      <p><strong>Platform:</strong> {{ selectedSession.location || '-' }}</p>
+      <p><strong>Schedule:</strong> {{ formatSchedule(selectedSession) }}</p>
+      <p>
+        <strong>Created At:</strong>
+        {{
+          selectedSession.created_at
+            ? new Date(selectedSession.created_at).toLocaleString([], {
+                dateStyle: 'short',
+                timeStyle: 'short',
+                hour12: false,
+              })
+            : '-'
+        }}
+      </p>
+      <p><strong>Attendees:</strong> {{ selectedSession.attendance?.length ?? 0 }}</p>
+    </div>
   </n-modal>
 </template>

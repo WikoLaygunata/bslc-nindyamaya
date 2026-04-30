@@ -1,41 +1,21 @@
 <script setup>
-import { h, onMounted, ref } from 'vue'
-import { NCard, NDataTable, NTag, useMessage } from 'naive-ui'
+import { onMounted, ref } from 'vue'
+import { NCard, NSkeleton, useMessage } from 'naive-ui'
 import { getMentor } from '@/api/api'
 
 const message = useMessage()
 const loading = ref(false)
-const data = ref([])
-
-const columns = [
-  { title: 'Name', key: 'name' },
-  { title: 'Email', key: 'email' },
-  { title: 'NIM', key: 'nim' },
-  { title: 'Region', key: 'region' },
-  { title: 'Major', key: 'major' },
-  { title: 'Phone', key: 'phone' },
-  {
-    title: 'Status',
-    key: 'is_active',
-    width: 110,
-    render: (row) =>
-      h(
-        NTag,
-        { type: row.is_active ? 'success' : 'error', round: true, size: 'small' },
-        { default: () => (row.is_active ? 'Active' : 'Inactive') }
-      ),
-  },
-]
+const mentor = ref(null)
 
 function normalizePayload(payload) {
   const parsed = payload?.data ?? payload
-  return parsed ? [parsed] : []
+  return parsed || null
 }
 
 async function fetchMentor() {
   try {
     loading.value = true
-    data.value = normalizePayload(await getMentor())
+    mentor.value = normalizePayload(await getMentor())
   } catch (error) {
     message.error(error.message)
   } finally {
@@ -48,13 +28,17 @@ onMounted(fetchMentor)
 
 <template>
   <n-card title="My Mentor" :bordered="false" class="rounded-2xl shadow-sm">
-    <n-data-table
-      :columns="columns"
-      :data="data"
-      :loading="loading"
-      :single-line="false"
-      size="small"
-      :scroll-x="900"
-    />
+    <div v-if="loading" class="space-y-3">
+      <n-skeleton text :repeat="6" />
+    </div>
+    <div v-else-if="mentor" class="space-y-3 text-sm">
+      <p><span class="font-semibold">Name:</span> {{ mentor.name || '-' }}</p>
+      <p><span class="font-semibold">Email:</span> {{ mentor.email || '-' }}</p>
+      <p><span class="font-semibold">NIM:</span> {{ mentor.nim || '-' }}</p>
+      <p><span class="font-semibold">Region:</span> {{ mentor.region || '-' }}</p>
+      <p><span class="font-semibold">Major:</span> {{ mentor.major || '-' }}</p>
+      <p><span class="font-semibold">Phone:</span> {{ mentor.phone || '-' }}</p>
+    </div>
+    <p v-else class="text-sm text-gray-500">Data mentor belum tersedia.</p>
   </n-card>
 </template>
