@@ -1,6 +1,16 @@
 <script setup>
 import { computed, h, onMounted, ref } from 'vue'
-import { NButton, NCard, NDataTable, NInput, NModal, NSpace, NTag, useMessage } from 'naive-ui'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NImage,
+  NInput,
+  NModal,
+  NSpace,
+  NTag,
+  useMessage,
+} from 'naive-ui'
 import { attendMentoringSession, getMentoringSessions } from '@/api/api'
 
 const message = useMessage()
@@ -10,6 +20,7 @@ const sessions = ref([])
 const search = ref('')
 const selectedSession = ref(null)
 const showSessionModal = ref(false)
+const baseUrl = import.meta.env.VITE_IMAGE_BASE_URL || ''
 
 function normalizePayload(payload) {
   return payload?.data ?? payload ?? []
@@ -23,6 +34,9 @@ function normalizeSession(item) {
     start_time: item.start_time ?? item.startTime ?? null,
     end_time: item.end_time ?? item.endTime ?? null,
     created_at: item.created_at ?? null,
+    notes: item.notes ?? '',
+    documentation_path: item.documentation_path ?? '',
+    status: item.status ?? 'Pending',
     attended: Boolean(item.attended),
   }
 }
@@ -100,6 +114,8 @@ const filteredSessions = computed(() => {
       formatSchedule(row),
       row.created_at ? new Date(row.created_at).toLocaleString() : '',
       getAttendanceState(row),
+      row.notes,
+      row.status,
     ]
 
     return searchable.some((value) =>
@@ -179,6 +195,49 @@ const columns = [
         : '-',
   },
   {
+    title: 'Notes',
+    key: 'notes',
+    width: 220,
+    titleAlign: 'center',
+    render: (row) =>
+      h(
+        'p',
+        {
+          style:
+            'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line;',
+          class: 'text-sm',
+        },
+        row.notes || '-',
+      ),
+  },
+  {
+    title: 'Documentation',
+    key: 'documentation_path',
+    width: 120,
+    align: 'center',
+    render: (row) =>
+      row.documentation_path
+        ? h(NImage, {
+            src: baseUrl + row.documentation_path,
+            width: 48,
+            height: 48,
+            objectFit: 'cover',
+            previewDisabled: true,
+          })
+        : '-',
+  },
+  {
+    title: 'Session Status',
+    key: 'session_status',
+    width: 130,
+    align: 'center',
+    render: (row) => {
+      const status = String(row.status ?? 'Pending')
+      const type = status === 'Finished' ? 'success' : 'warning'
+      return h(NTag, { type, size: 'small', round: true }, { default: () => status })
+    },
+  },
+  {
     title: 'Status',
     key: 'attend',
     width: 130,
@@ -237,7 +296,11 @@ onMounted(fetchSessions)
       <p class="text-sm text-(--grey-color)">
         View available mentoring sessions and mark your attendance.
       </p>
-      <n-input v-model:value="search" clearable placeholder="Search course, schedule, or status" />
+      <n-input
+        v-model:value="search"
+        clearable
+        placeholder="Search course, schedule, notes, or status"
+      />
       <n-data-table
         :columns="columns"
         :data="filteredSessions"
@@ -245,30 +308,66 @@ onMounted(fetchSessions)
         :row-props="rowProps"
         :single-line="false"
         size="small"
-        :scroll-x="1100"
+        :scroll-x="1500"
       />
     </n-space>
   </n-card>
 
   <n-modal
     v-model:show="showSessionModal"
+    :auto-focus="false"
     preset="card"
     title="Session Detail"
     size="small"
     style="width: min(420px, calc(100vw - 32px))"
   >
-    <hr class="mb-2" />
-    <div v-if="selectedSession" class="space-y-2 text-sm py-2">
-      <p><strong>Course:</strong> {{ selectedSession.topic || '-' }}</p>
-      <p><strong>Schedule:</strong> {{ formatSchedule(selectedSession) }}</p>
-      <p><strong>Platform:</strong> {{ selectedSession.location || '-' }}</p>
-      <p>
-        <strong>Created At:</strong>
-        {{
-          selectedSession.created_at ? new Date(selectedSession.created_at).toLocaleString() : '-'
-        }}
-      </p>
-      <p><strong>Status:</strong> {{ getAttendanceState(selectedSession) }}</p>
+    <div v-if="selectedSession" class="space-y-4 py-1">
+      <div class="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
+        <span class="text-(--grey-color)">Course</span>
+        <span class="font-medium text-(--dark-color)">{{ selectedSession.topic || '-' }}</span>
+
+        <span class="text-(--grey-color)">Schedule</span>
+        <span class="text-(--dark-color)">{{ formatSchedule(selectedSession) }}</span>
+
+        <span class="text-(--grey-color)">Platform</span>
+        <span class="text-(--dark-color)">{{ selectedSession.location || '-' }}</span>
+
+        <span class="text-(--grey-color)">Session Status</span>
+        <span class="text-(--dark-color)">{{ selectedSession.status || '-' }}</span>
+
+        <span class="text-(--grey-color)">Attendance</span>
+        <span class="text-(--dark-color)">
+          {{
+            getAttendanceState(selectedSession).charAt(0).toUpperCase() +
+            getAttendanceState(selectedSession).slice(1)
+          }}
+        </span>
+
+        <span class="text-(--grey-color)">Created At</span>
+        <span class="text-(--dark-color)">
+          {{
+            selectedSession.created_at ? new Date(selectedSession.created_at).toLocaleString() : '-'
+          }}
+        </span>
+      </div>
+
+      <div class="space-y-1 text-sm">
+        <p class="text-(--grey-color)">Notes</p>
+        <p class="rounded-md bg-gray-50 px-3 py-2 text-(--dark-color) whitespace-pre-line">
+          {{ selectedSession.notes || '-' }}
+        </p>
+      </div>
+
+      <div class="space-y-1 text-sm">
+        <p class="text-(--grey-color)">Documentation</p>
+        <n-image
+          v-if="selectedSession.documentation_path"
+          :src="baseUrl + selectedSession.documentation_path"
+          width="140"
+          object-fit="cover"
+        />
+        <p v-else class="text-(--dark-color)">-</p>
+      </div>
     </div>
   </n-modal>
 </template>

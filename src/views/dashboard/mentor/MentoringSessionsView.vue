@@ -5,41 +5,58 @@ import {
   NButton,
   NCard,
   NDataTable,
-  NDatePicker,
   NDropdown,
-  NForm,
-  NFormItem,
   NIcon,
+  NImage,
   NInput,
   NModal,
   NSpace,
+  NTag,
   useDialog,
   useMessage,
 } from 'naive-ui'
 import {
   createMentoringSession,
   deleteMentoringSession,
+  finishMentoringSession,
   getMentoringSessions,
   updateMentoringSession,
 } from '@/api/api'
+import SessionFormModal from './SessionFormModal.vue'
+import FinishSessionModal from './FinishSessionModal.vue'
 
 const message = useMessage()
 const dialog = useDialog()
 const loading = ref(false)
 const submitting = ref(false)
+const finishing = ref(false)
 const sessions = ref([])
 const search = ref('')
 const showModal = ref(false)
 const showDetailModal = ref(false)
+const showFinishModal = ref(false)
 const editingId = ref(null)
 const selectedSession = ref(null)
+const selectedFinishSession = ref(null)
+const documentationFile = ref(null)
+const documentationPreviewUrl = ref('')
+const baseUrl = import.meta.env.VITE_IMAGE_BASE_URL || ''
 
 const form = reactive({
   course_name: '',
   platform: '',
   start_time: null,
   end_time: null,
+  notes: '',
+  status: 'Pending',
 })
+
+function isFinishedStatus(status) {
+  const normalized = String(status ?? '')
+    .trim()
+    .toLowerCase()
+  return normalized === 'finished'
+}
 
 function formatSchedule(row) {
   if (!row.start_time || !row.end_time) {
@@ -85,7 +102,7 @@ const filteredSessions = computed(() => {
   }
 
   return sessions.value.filter((row) => {
-    const searchable = [row.topic, formatSchedule(row)]
+    const searchable = [row.topic, formatSchedule(row), row.status]
 
     return searchable.some((value) =>
       String(value ?? '')
@@ -139,6 +156,50 @@ const columns = [
         : '-',
   },
   {
+    title: 'Notes',
+    key: 'notes',
+    width: 220,
+    titleAlign: 'center',
+    render: (row) =>
+      h(
+        'p',
+        {
+          style:
+            'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line;',
+          class: 'text-sm',
+        },
+        row.notes || '-',
+      ),
+  },
+  {
+    title: 'Documentation',
+    key: 'documentation_path',
+    width: 120,
+    align: 'center',
+    render: (row) => {
+      return row.documentation_path
+        ? h(NImage, {
+            src: baseUrl + row.documentation_path,
+            width: 48,
+            height: 48,
+            objectFit: 'cover',
+            previewDisabled: true,
+          })
+        : '-'
+    },
+  },
+  {
+    title: 'Status',
+    key: 'status',
+    width: 120,
+    align: 'center',
+    render: (row) => {
+      const status = String(row.status ?? 'Pending')
+      const type = isFinishedStatus(status) ? 'success' : 'warning'
+      return h(NTag, { type, size: 'small', round: true }, { default: () => status })
+    },
+  },
+  {
     title: 'Attendees',
     key: 'attendance',
     width: 260,
@@ -187,6 +248,7 @@ const columns = [
           placement: 'bottom-end',
           options: [
             { label: 'Edit', key: 'action-edit' },
+            { label: 'Finish Class', key: 'action-finish', disabled: isFinishedStatus(row.status) },
             { label: 'Delete', key: 'action-delete' },
           ],
           onSelect: (key) => handleDataAction(row, key),
@@ -216,7 +278,38 @@ function normalizePayload(payload) {
   return payload?.data ?? payload ?? []
 }
 
+function resolveMenteeId(item) {
+  return (
+    item?.mentee_id ??
+    item?.nindyamaya_user_id ??
+    item?.user_id ??
+    item?.menteeId ??
+    item?.mentee?.id ??
+    item?.mentee?.nindyamaya_user_id ??
+    item?.user?.id ??
+    item?.id
+  )
+}
+
 function normalizeSession(item) {
+  const mappedAttendance = (item.attendance ?? item.mentees ?? item.participants ?? []).map(
+    (entry) => {
+      const menteeId = resolveMenteeId(entry)
+
+      return {
+        mentee_id: menteeId,
+        name:
+          entry.name ??
+          entry.full_name ??
+          entry.mentee?.name ??
+          entry.mentee?.full_name ??
+          entry.user?.name ??
+          `Mentee #${menteeId ?? '-'}`,
+        is_attend: Boolean(entry.is_attend ?? entry.attended ?? entry.isAttend),
+      }
+    },
+  )
+
   return {
     id: item.id,
     topic: item.course_name ?? item.topic ?? item.title ?? '-',
@@ -224,7 +317,10 @@ function normalizeSession(item) {
     start_time: item.start_time ?? item.startTime ?? null,
     end_time: item.end_time ?? item.endTime ?? null,
     created_at: item.created_at ?? null,
-    attendance: item.attendance ?? item.mentees ?? [],
+    notes: item.notes ?? '',
+    documentation_path: item.documentation_path ?? '',
+    status: item.status ?? 'Pending',
+    attendance: mappedAttendance,
     raw: item,
   }
 }
@@ -246,6 +342,9 @@ function resetForm() {
   form.platform = ''
   form.start_time = null
   form.end_time = null
+  form.notes = ''
+  form.status = 'Pending'
+  handleDocumentationRemove()
 }
 
 function openCreate() {
@@ -260,7 +359,20 @@ function openEdit(row) {
   form.platform = row.location === '-' ? '' : row.location
   form.start_time = row.start_time ? new Date(row.start_time).getTime() : null
   form.end_time = row.end_time ? new Date(row.end_time).getTime() : null
+  form.notes = row.notes ?? ''
+  form.status = row.status ?? 'Pending'
+  documentationFile.value = null
+  documentationPreviewUrl.value = row.documentation_path ?? ''
   showModal.value = true
+}
+
+function openFinish(row) {
+  if (isFinishedStatus(row?.status)) {
+    message.info('This session is already finished')
+    return
+  }
+  selectedFinishSession.value = row
+  showFinishModal.value = true
 }
 
 function mapFormPayload() {
@@ -280,12 +392,32 @@ function mapFormPayload() {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
   }
 
-  return {
+  const basePayload = {
     course_name: form.course_name,
     platform: form.platform,
     start_time: toLocalDateTime(form.start_time),
     end_time: toLocalDateTime(form.end_time),
   }
+
+  if (!editingId.value) {
+    return basePayload
+  }
+
+  const payload = new FormData()
+  payload.append('course_name', basePayload.course_name)
+  payload.append('platform', basePayload.platform)
+  if (basePayload.start_time) {
+    payload.append('start_time', basePayload.start_time)
+  }
+  if (basePayload.end_time) {
+    payload.append('end_time', basePayload.end_time)
+  }
+  payload.append('notes', form.notes || '')
+  payload.append('status', form.status || 'Pending')
+  if (documentationFile.value) {
+    payload.append('documentation_image', documentationFile.value)
+  }
+  return payload
 }
 
 async function submitForm() {
@@ -305,6 +437,53 @@ async function submitForm() {
     message.error(error.message)
   } finally {
     submitting.value = false
+  }
+}
+
+function handleDocumentationChange(file) {
+  if (documentationPreviewUrl.value?.startsWith('blob:')) {
+    URL.revokeObjectURL(documentationPreviewUrl.value)
+  }
+  documentationFile.value = file
+  documentationPreviewUrl.value = file ? URL.createObjectURL(file) : ''
+}
+
+function handleDocumentationRemove() {
+  if (documentationPreviewUrl.value?.startsWith('blob:')) {
+    URL.revokeObjectURL(documentationPreviewUrl.value)
+  }
+  documentationFile.value = null
+  documentationPreviewUrl.value = ''
+}
+
+function handleFormFieldUpdate({ key, value }) {
+  if (!(key in form)) {
+    return
+  }
+  form[key] = value
+}
+
+async function submitFinishSession(payload) {
+  if (!selectedFinishSession.value) {
+    return
+  }
+
+  if (!(payload?.formData instanceof FormData)) {
+    message.error('Invalid finish session payload')
+    return
+  }
+
+  try {
+    finishing.value = true
+    await finishMentoringSession(selectedFinishSession.value.id, payload.formData)
+    message.success('Mentoring session finished successfully')
+    showFinishModal.value = false
+    selectedFinishSession.value = null
+    await fetchSessions()
+  } catch (error) {
+    message.error(error.message)
+  } finally {
+    finishing.value = false
   }
 }
 
@@ -337,7 +516,17 @@ function handleDataAction(row, key) {
   }
   if (key === 'action-delete') {
     confirmDelete(row.id)
+    return
   }
+  if (key === 'action-finish') {
+    openFinish(row)
+  }
+}
+
+function formatAttendeesSummary(session) {
+  const attendance = session?.attendance ?? []
+  const attendedCount = attendance.filter((item) => item.is_attend).length
+  return `${attendedCount} of ${attendance.length}`
 }
 
 onMounted(fetchSessions)
@@ -350,7 +539,7 @@ onMounted(fetchSessions)
         <p class="text-sm text-(--grey-color)">Manage mentoring sessions here.</p>
         <n-button type="primary" @click="openCreate">Create Session</n-button>
       </n-space>
-      <n-input v-model:value="search" clearable placeholder="Search course or schedule" />
+      <n-input v-model:value="search" clearable placeholder="Search course, status, or schedule" />
 
       <n-data-table
         :columns="columns"
@@ -359,64 +548,88 @@ onMounted(fetchSessions)
         :row-props="rowProps"
         :single-line="false"
         size="small"
-        :scroll-x="1100"
+        :scroll-x="1700"
       />
     </n-space>
   </n-card>
 
-  <n-modal
-    v-model:show="showModal"
-    preset="card"
-    :title="editingId ? 'Edit Session' : 'Create Session'"
-    class="max-w-xl"
-  >
-    <n-form label-placement="top">
-      <n-form-item label="Course Name">
-        <n-input v-model:value="form.course_name" placeholder="e.g. Struktur Data" />
-      </n-form-item>
-      <n-form-item label="Platform">
-        <n-input v-model:value="form.platform" placeholder="e.g. Zoom / Google Meet" />
-      </n-form-item>
-      <div class="grid gap-3 md:grid-cols-2">
-        <n-form-item label="Start Time">
-          <n-date-picker v-model:value="form.start_time" type="datetime" clearable class="w-full" />
-        </n-form-item>
-        <n-form-item label="End Time">
-          <n-date-picker v-model:value="form.end_time" type="datetime" clearable class="w-full" />
-        </n-form-item>
-      </div>
-      <n-space justify="end">
-        <n-button secondary @click="showModal = false">Cancel</n-button>
-        <n-button type="primary" :loading="submitting" @click="submitForm">Save</n-button>
-      </n-space>
-    </n-form>
-  </n-modal>
+  <session-form-modal
+    :show="showModal"
+    :is-editing="Boolean(editingId)"
+    :submitting="submitting"
+    :form="form"
+    :documentation-preview-url="documentationPreviewUrl"
+    @update:show="showModal = $event"
+    @update:form-field="handleFormFieldUpdate"
+    @documentation-change="handleDocumentationChange"
+    @documentation-remove="handleDocumentationRemove"
+    @submit="submitForm"
+  />
 
   <n-modal
     v-model:show="showDetailModal"
     preset="card"
     title="Session Detail"
     size="small"
+    :auto-focus="false"
     style="width: min(420px, calc(100vw - 32px))"
   >
-    <hr class="mb-2" />
-    <div v-if="selectedSession" class="space-y-2 text-sm py-2">
-      <p><strong>Course:</strong> {{ selectedSession.topic || '-' }}</p>
-      <p><strong>Platform:</strong> {{ selectedSession.location || '-' }}</p>
-      <p><strong>Schedule:</strong> {{ formatSchedule(selectedSession) }}</p>
-      <p>
-        <strong>Created At:</strong>
-        {{
-          selectedSession.created_at
-            ? new Date(selectedSession.created_at).toLocaleString([], {
-                dateStyle: 'short',
-                timeStyle: 'short',
-                hour12: false,
-              })
-            : '-'
-        }}
-      </p>
-      <p><strong>Attendees:</strong> {{ selectedSession.attendance?.length ?? 0 }}</p>
+    <div v-if="selectedSession" class="space-y-4 py-1">
+      <div class="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
+        <span class="text-(--grey-color)">Course</span>
+        <span class="font-medium text-(--dark-color)">{{ selectedSession.topic || '-' }}</span>
+
+        <span class="text-(--grey-color)">Platform</span>
+        <span class="text-(--dark-color)">{{ selectedSession.location || '-' }}</span>
+
+        <span class="text-(--grey-color)">Schedule</span>
+        <span class="text-(--dark-color)">{{ formatSchedule(selectedSession) }}</span>
+
+        <span class="text-(--grey-color)">Status</span>
+        <span class="text-(--dark-color)">{{ selectedSession.status || '-' }}</span>
+
+        <span class="text-(--grey-color)">Attendees</span>
+        <span class="text-(--dark-color)">{{ formatAttendeesSummary(selectedSession) }}</span>
+
+        <span class="text-(--grey-color)">Created At</span>
+        <span class="text-(--dark-color)">
+          {{
+            selectedSession.created_at
+              ? new Date(selectedSession.created_at).toLocaleString([], {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                  hour12: false,
+                })
+              : '-'
+          }}
+        </span>
+      </div>
+
+      <div class="space-y-1 text-sm">
+        <p class="text-(--grey-color)">Notes</p>
+        <p class="rounded-md bg-gray-50 px-3 py-2 text-(--dark-color) whitespace-pre-line">
+          {{ selectedSession.notes || '-' }}
+        </p>
+      </div>
+
+      <div class="space-y-1 text-sm">
+        <p class="text-(--grey-color)">Documentation</p>
+        <n-image
+          v-if="selectedSession.documentation_path"
+          :src="baseUrl + selectedSession.documentation_path"
+          width="140"
+          object-fit="cover"
+        />
+        <p v-else class="text-(--dark-color)">-</p>
+      </div>
     </div>
   </n-modal>
+
+  <finish-session-modal
+    :show="showFinishModal"
+    :session="selectedFinishSession"
+    :submitting="finishing"
+    @update:show="showFinishModal = $event"
+    @submit="submitFinishSession"
+  />
 </template>

@@ -27,6 +27,16 @@ function buildUrl(path) {
   return `${API_BASE_URL}/${path}`
 }
 
+function getFormDataHeaders() {
+  const token = getAuthToken()
+  return token
+    ? {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      }
+    : { Accept: 'application/json' }
+}
+
 async function parseResponse(response) {
   const text = await response.text()
   const data = text ? JSON.parse(text) : null
@@ -104,10 +114,11 @@ export async function createMentoringSession(payload) {
 }
 
 export async function updateMentoringSession(sessionId, payload) {
+  const isFormData = payload instanceof FormData
   const data = await request(`mentoring-sessions/${sessionId}`, {
     method: 'PUT',
-    headers: getHeaders(),
-    body: JSON.stringify(payload),
+    headers: isFormData ? getFormDataHeaders() : getHeaders(),
+    body: isFormData ? payload : JSON.stringify(payload),
   })
   invalidateDashboardCache()
   return data
@@ -126,6 +137,16 @@ export async function attendMentoringSession(sessionId) {
   const data = await request(`mentoring-sessions/${sessionId}/attend`, {
     method: 'POST',
     headers: getHeaders(false),
+  })
+  invalidateDashboardCache()
+  return data
+}
+
+export async function finishMentoringSession(sessionId, payload) {
+  const data = await request(`mentoring-sessions/${sessionId}/finish`, {
+    method: 'POST',
+    headers: getFormDataHeaders(),
+    body: payload,
   })
   invalidateDashboardCache()
   return data
