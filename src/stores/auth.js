@@ -28,6 +28,17 @@ function clearAuth() {
   localStorage.removeItem(USER_KEY)
 }
 
+function updateUser(nextUser) {
+  user.value = nextUser
+
+  if (nextUser) {
+    localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+    return
+  }
+
+  localStorage.removeItem(USER_KEY)
+}
+
 const isAuthenticated = computed(() => Boolean(token.value))
 const role = computed(() => user.value?.role ?? null)
 
@@ -39,5 +50,6 @@ export function useAuthStore() {
     isAuthenticated,
     setAuth,
     clearAuth,
+    updateUser,
   }
 }

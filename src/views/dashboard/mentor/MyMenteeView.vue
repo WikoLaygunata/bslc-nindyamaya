@@ -1,15 +1,38 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { NCard, NDataTable, NInput, NSpace, useMessage } from 'naive-ui'
+import { computed, h, onMounted, ref } from 'vue'
+import { NCard, NDataTable, NImage, NInput, NSpace, useMessage } from 'naive-ui'
 import { getMentees } from '@/api/api'
 
 const message = useMessage()
 const loading = ref(false)
 const data = ref([])
 const search = ref('')
+const imageBaseUrl =
+  import.meta.env.VITE_IMAGE_BASE_URL ||
+  ''
 
 const columns = [
   { title: 'No', key: 'no', width: 50, align: 'center', render: (_, index) => index + 1 },
+  {
+    title: 'Profile',
+    key: 'profile_path',
+    width: 100,
+    align: 'center',
+    render: (row) => {
+      if (!row.profile_path) return '-'
+      const imgSrc = row.profile_path.startsWith('http')
+        ? row.profile_path
+        : imageBaseUrl + row.profile_path
+
+      return h(NImage, {
+        src: imgSrc,
+        width: 64,
+        height: 64,
+        objectFit: 'cover',
+        style: { borderRadius: '8px' },
+      })
+    },
+  },
   {
     title: 'Name',
     key: 'name',
@@ -81,7 +104,7 @@ onMounted(fetchMentees)
         :loading="loading"
         :single-line="false"
         size="small"
-        :scroll-x="900"
+        :scroll-x="1000"
       />
     </n-space>
   </n-card>

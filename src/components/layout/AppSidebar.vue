@@ -1,7 +1,13 @@
 <script setup>
 import { computed, h } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { ExitOutline, HomeOutline, PeopleOutline, SchoolOutline } from '@vicons/ionicons5'
+import {
+  ExitOutline,
+  HomeOutline,
+  PeopleOutline,
+  PersonCircleOutline,
+  SchoolOutline,
+} from '@vicons/ionicons5'
 import { NButton, NIcon, NMenu, NTag } from 'naive-ui'
 
 const props = defineProps({
@@ -55,6 +61,12 @@ const menuOptions = computed(() => {
       ),
     key: 'mentoring-sessions',
     icon: renderIcon(PeopleOutline),
+  })
+
+  baseItems.push({
+    label: () => h(RouterLink, { to: { name: 'profile' } }, { default: () => 'Profile' }),
+    key: 'profile',
+    icon: renderIcon(PersonCircleOutline),
   })
 
   return baseItems

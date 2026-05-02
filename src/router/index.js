@@ -48,6 +48,11 @@ const routes = [
             () => import('@/views/dashboard/mentee/MentoringSessionsView.vue')
           ),
       },
+      {
+        path: 'profile',
+        name: 'profile',
+        component: () => import('@/views/dashboard/ProfileView.vue'),
+      },
     ],
   },
   {

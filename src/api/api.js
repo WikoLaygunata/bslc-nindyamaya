@@ -151,3 +151,14 @@ export async function finishMentoringSession(sessionId, payload) {
   invalidateDashboardCache()
   return data
 }
+
+export async function updateProfileImage(file) {
+  const payload = new FormData()
+  payload.append('profile_image', file)
+
+  return request('profile-image', {
+    method: 'POST',
+    headers: getFormDataHeaders(),
+    body: payload,
+  })
+}
