@@ -1,13 +1,11 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const isMobileSidebarOpen = ref(false)
 const auth = useAuthStore()
-const router = useRouter()
 
 const role = computed(() => auth.role.value)
 const userName = computed(() => auth.user.value?.name ?? 'User')
@@ -22,7 +20,8 @@ function closeMobileSidebar() {
 
 function handleLogout() {
   auth.clearAuth()
-  router.push({ name: 'login' })
+  const loginUrl = new URL('login', new URL(import.meta.env.BASE_URL, window.location.origin))
+  window.location.replace(loginUrl.href)
 }
 </script>
 

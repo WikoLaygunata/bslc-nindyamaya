@@ -1,13 +1,11 @@
 <script setup>
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { LockClosedOutline, MailOutline } from '@vicons/ionicons5'
 import { NButton, NCard, NForm, NFormItem, NIcon, NInput, NTag, NText, useMessage } from 'naive-ui'
 import { login } from '@/api/api'
 import { useAuthStore } from '@/stores/auth'
 import logoUrl from '@/assets/BSLC-logo.png'
 
-const router = useRouter()
 const message = useMessage()
 const auth = useAuthStore()
 const loading = ref(false)
@@ -28,7 +26,8 @@ async function handleSubmit() {
     const response = await login(form)
     auth.setAuth(response.token, response.user)
     message.success(`Welcome, ${response.user.name}`)
-    router.push({ name: 'home' })
+    const homeUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
+    window.location.replace(homeUrl.href)
   } catch (error) {
     message.error(error.message)
   } finally {

@@ -131,6 +131,11 @@ async function fetchSessions() {
     loading.value = true
     const payload = await getMentoringSessions()
     sessions.value = normalizePayload(payload).map(normalizeSession)
+
+    if (selectedSession.value) {
+      selectedSession.value =
+        sessions.value.find((session) => session.id === selectedSession.value.id) ?? null
+    }
   } catch (error) {
     message.error(error.message)
   } finally {
@@ -273,15 +278,22 @@ const columns = [
         NButton,
         {
           size: 'small',
-          type: 'primary',
-          tertiary: true,
+          type: 'success', // changed to 'success' for a more recognizable/positive color
+          strong: true, // make the button stand out more
+          ghost: false, // ensure solid color
           loading: attendingId.value === row.id,
+          style: {
+            color: '#fff',
+            backgroundColor: '#28a745', // green, strong positive CTA
+            borderColor: '#28a745',
+            letterSpacing: '0.5px',
+          },
           onClick: (event) => {
             event.stopPropagation()
             handleAttend(row.id)
           },
         },
-        { default: () => 'Attend' },
+        { default: () => 'Attend Class' },
       )
     },
   },
@@ -368,6 +380,17 @@ onMounted(fetchSessions)
         />
         <p v-else class="text-(--dark-color)">-</p>
       </div>
+
+      <n-button
+        v-if="getAttendanceState(selectedSession) === 'available'"
+        type="success"
+        block
+        strong
+        :loading="attendingId === selectedSession.id"
+        @click="handleAttend(selectedSession.id)"
+      >
+        Attend Class
+      </n-button>
     </div>
   </n-modal>
 </template>
