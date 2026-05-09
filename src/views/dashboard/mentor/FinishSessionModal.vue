@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, reactive, ref, watch } from 'vue'
+import imageCompression from 'browser-image-compression'
 import { NButton, NCheckbox, NForm, NFormItem, NImage, NInput, NModal, NSpace, NUpload, useMessage } from 'naive-ui'
 
 const props = defineProps({
@@ -18,6 +19,7 @@ const form = reactive({
 
 const menteeAttendance = reactive([])
 const documentationPreviewUrl = ref('')
+const compressingImage = ref(false)
 
 function resolveMenteeId(item) {
   return item?.mentee_id
@@ -63,12 +65,52 @@ function dummyUpload({ onFinish }) {
   onFinish()
 }
 
-function handleUploadChange({ file }) {
-  clearPreviewUrl()
-  form.documentationFile = file?.file ?? null
-  documentationPreviewUrl.value = form.documentationFile
-    ? URL.createObjectURL(form.documentationFile)
-    : ''
+function toWebpFile(compressed, originalFile) {
+  if (compressed instanceof File && compressed.name && compressed.name !== 'blob') {
+    return compressed
+  }
+
+  const originalName = originalFile?.name ?? 'documentation'
+  const baseName = originalName.replace(/\.[^/.]+$/, '') || 'documentation'
+  return new File([compressed], `${baseName}.webp`, { type: 'image/webp' })
+}
+
+async function handleUploadChange({ file }) {
+  const rawFile = file?.file ?? null
+  if (!rawFile) {
+    clearPreviewUrl()
+    form.documentationFile = null
+    return
+  }
+
+  if (!rawFile.type?.startsWith('image/')) {
+    message.error('Please choose an image file')
+    clearPreviewUrl()
+    form.documentationFile = null
+    return
+  }
+
+  const options = {
+    maxSizeMB: 0.2,
+    maxWidthOrHeight: 1200,
+    useWebWorker: true,
+    fileType: 'image/webp',
+  }
+
+  try {
+    compressingImage.value = true
+    const compressedFile = await imageCompression(rawFile, options)
+    const webpFile = toWebpFile(compressedFile, rawFile)
+    clearPreviewUrl()
+    form.documentationFile = webpFile
+    documentationPreviewUrl.value = URL.createObjectURL(webpFile)
+  } catch {
+    message.error('Failed to compress image')
+    clearPreviewUrl()
+    form.documentationFile = null
+  } finally {
+    compressingImage.value = false
+  }
 }
 
 function closeModal() {
@@ -135,9 +177,12 @@ onBeforeUnmount(clearPreviewUrl)
             accept="image/*"
             :show-file-list="false"
             :custom-request="dummyUpload"
+            :disabled="compressingImage || submitting"
             @change="handleUploadChange"
           >
-            <n-button secondary>Choose Image</n-button>
+            <n-button secondary :loading="compressingImage">
+              {{ compressingImage ? 'Compressing...' : 'Choose Image' }}
+            </n-button>
           </n-upload>
           <n-image
             v-if="documentationPreviewUrl"
@@ -165,7 +210,14 @@ onBeforeUnmount(clearPreviewUrl)
 
       <n-space justify="end">
         <n-button secondary @click="closeModal">Cancel</n-button>
-        <n-button type="primary" :loading="submitting" @click="submitFinish">Finish Class</n-button>
+        <n-button
+          type="primary"
+          :loading="submitting || compressingImage"
+          :disabled="compressingImage"
+          @click="submitFinish"
+        >
+          Finish Class
+        </n-button>
       </n-space>
     </n-form>
   </n-modal>

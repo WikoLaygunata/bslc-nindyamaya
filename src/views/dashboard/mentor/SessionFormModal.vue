@@ -1,5 +1,6 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import imageCompression from 'browser-image-compression'
 import {
   NButton,
   NDatePicker,
@@ -11,6 +12,7 @@ import {
   NSelect,
   NSpace,
   NUpload,
+  useMessage,
 } from 'naive-ui'
 
 const props = defineProps({
@@ -28,8 +30,11 @@ const emit = defineEmits([
   'documentation-remove',
   'update:form-field',
 ])
+const message = useMessage()
+const compressingImage = ref(false)
 
 const title = computed(() => (props.isEditing ? 'Edit Session' : 'Create Session'))
+const saveLoading = computed(() => props.submitting || compressingImage.value)
 const statusOptions = [
   { label: 'Pending', value: 'Pending' },
   { label: 'Finished', value: 'Finished' },
@@ -43,8 +48,46 @@ function dummyUpload({ onFinish }) {
   onFinish()
 }
 
-function handleUploadChange({ file }) {
-  emit('documentation-change', file?.file ?? null)
+function toWebpFile(compressed, originalFile) {
+  if (compressed instanceof File && compressed.name && compressed.name !== 'blob') {
+    return compressed
+  }
+
+  const originalName = originalFile?.name ?? 'documentation'
+  const baseName = originalName.replace(/\.[^/.]+$/, '') || 'documentation'
+  return new File([compressed], `${baseName}.webp`, { type: 'image/webp' })
+}
+
+async function handleUploadChange({ file }) {
+  const rawFile = file?.file ?? null
+  if (!rawFile) {
+    emit('documentation-change', null)
+    return
+  }
+
+  if (!rawFile.type?.startsWith('image/')) {
+    message.error('Please choose an image file')
+    emit('documentation-change', null)
+    return
+  }
+
+  const options = {
+    maxSizeMB: 0.2,
+    maxWidthOrHeight: 1200,
+    useWebWorker: true,
+    fileType: 'image/webp',
+  }
+
+  try {
+    compressingImage.value = true
+    const compressedFile = await imageCompression(rawFile, options)
+    emit('documentation-change', toWebpFile(compressedFile, rawFile))
+  } catch {
+    message.error('Failed to compress image')
+    emit('documentation-change', null)
+  } finally {
+    compressingImage.value = false
+  }
 }
 
 function handleUploadRemove() {
@@ -124,10 +167,13 @@ function updateFormField(key, value) {
               accept="image/*"
               :show-file-list="false"
               :custom-request="dummyUpload"
+              :disabled="compressingImage || submitting"
               @change="handleUploadChange"
               @remove="handleUploadRemove"
             >
-              <n-button secondary>Choose Image</n-button>
+              <n-button secondary :loading="compressingImage">
+                {{ compressingImage ? 'Compressing...' : 'Choose Image' }}
+              </n-button>
             </n-upload>
             <n-image
               v-if="documentationPreviewUrl"
@@ -141,7 +187,9 @@ function updateFormField(key, value) {
 
       <n-space justify="end">
         <n-button secondary @click="closeModal">Cancel</n-button>
-        <n-button type="primary" :loading="submitting" @click="emit('submit')">Save</n-button>
+        <n-button type="primary" :loading="saveLoading" :disabled="compressingImage" @click="emit('submit')">
+          Save
+        </n-button>
       </n-space>
     </n-form>
   </n-modal>
