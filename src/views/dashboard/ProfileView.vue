@@ -3,10 +3,12 @@ import { computed, ref } from 'vue'
 import { NButton, NCard, NImage, NTag, useMessage } from 'naive-ui'
 import { updateProfileImage } from '@/api/api'
 import { useAuthStore } from '@/stores/auth'
+import imageCompression from 'browser-image-compression'
 
 const auth = useAuthStore()
 const message = useMessage()
 const uploading = ref(false)
+const compressingImage = ref(false)
 const fileInput = ref(null)
 
 const user = computed(() => auth.user.value ?? {})
@@ -25,9 +27,7 @@ const imageUrl = computed(() => {
     return path
   }
 
-  const baseUrl =
-    import.meta.env.VITE_IMAGE_BASE_URL ||
-    ''
+  const baseUrl = import.meta.env.VITE_IMAGE_BASE_URL || ''
 
   return `${baseUrl}${path}`
 })
@@ -48,9 +48,19 @@ async function handleSelectImage(event) {
     return
   }
 
+  const options = {
+    maxSizeMB: 0.2,
+    maxWidthOrHeight: 1200,
+    useWebWorker: true,
+    fileType: 'image/webp',
+  }
+
   try {
     uploading.value = true
-    const response = await updateProfileImage(file)
+    compressingImage.value = true
+
+    const compressedFile = await imageCompression(file, options)
+    const response = await updateProfileImage(compressedFile)
     const payload = response?.data ?? response ?? {}
     const nextUser = payload.user ?? payload
 
@@ -61,9 +71,10 @@ async function handleSelectImage(event) {
 
     message.success('Profile image updated')
   } catch (error) {
-    message.error(error.message)
+    message.error(error?.message ?? 'Failed to upload profile image')
   } finally {
     uploading.value = false
+    compressingImage.value = false
     event.target.value = ''
   }
 }
@@ -78,8 +89,13 @@ async function handleSelectImage(event) {
       </div>
 
       <div class="flex flex-col gap-6 md:flex-row md:items-start">
-        <div class="flex w-full flex-col items-center gap-3 rounded-xl border border-gray-100 p-4 md:w-56">
-          <div v-if="imageUrl" class="h-[120px] w-[120px] overflow-hidden rounded-full border border-gray-200">
+        <div
+          class="flex w-full flex-col items-center gap-3 rounded-xl border border-gray-100 p-4 md:w-56"
+        >
+          <div
+            v-if="imageUrl"
+            class="h-[120px] w-[120px] overflow-hidden rounded-full border border-gray-200"
+          >
             <n-image
               :src="imageUrl"
               width="120"
@@ -106,8 +122,13 @@ async function handleSelectImage(event) {
             class="hidden"
             @change="handleSelectImage"
           />
-          <n-button type="primary" :loading="uploading" @click="triggerFilePicker">
-            Change Profile Image
+          <n-button
+            type="primary"
+            :loading="uploading || compressingImage"
+            :disabled="uploading || compressingImage"
+            @click="triggerFilePicker"
+          >
+            {{ uploading || compressingImage ? 'Processing...' : 'Change Profile Image' }}
           </n-button>
         </div>
 
