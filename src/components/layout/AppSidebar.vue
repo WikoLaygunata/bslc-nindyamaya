@@ -79,8 +79,8 @@ const roleLabel = computed(() =>
 </script>
 
 <template>
-  <div class="h-full min-h-[calc(100vh-72px)] p-3">
-    <div class="space-y-3 pb-24">
+  <div class="relative flex h-full min-h-[calc(100dvh-72px)] flex-col p-3">
+    <div class="min-h-0 flex-1 space-y-3 overflow-y-auto pb-24">
       <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <div class="mb-3">
           <n-tag type="success" size="small" round>{{ roleLabel }}</n-tag>
@@ -91,7 +91,7 @@ const roleLabel = computed(() =>
       <n-menu :value="activeKey" :options="menuOptions" />
     </div>
 
-    <div class="fixed bottom-3 left-3 z-30 w-[236px] p-2">
+    <div class="absolute inset-x-3 bottom-3 z-30 p-2">
       <n-button block type="error" ghost @click="$emit('logout')">
         <template #icon>
           <n-icon>

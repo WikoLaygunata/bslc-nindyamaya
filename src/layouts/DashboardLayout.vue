@@ -40,7 +40,7 @@ function handleLogout() {
         @click="closeMobileSidebar"
       />
       <aside
-        class="fixed left-0 top-0 z-50 h-screen w-[260px] border-r border-gray-200 bg-white transition-transform duration-300 ease-out lg:hidden"
+        class="fixed left-0 top-0 z-50 h-[100dvh] w-[260px] border-r border-gray-200 bg-white transition-transform duration-300 ease-out lg:hidden"
         :class="isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
       >
         <app-sidebar :role="role" :name="userName" @logout="handleLogout" />
