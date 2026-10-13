@@ -1,7 +1,18 @@
 <script setup>
 import { onBeforeUnmount, reactive, ref, watch } from 'vue'
 import imageCompression from 'browser-image-compression'
-import { NButton, NCheckbox, NForm, NFormItem, NImage, NInput, NModal, NSpace, NUpload, useMessage } from 'naive-ui'
+import {
+  NButton,
+  NCheckbox,
+  NForm,
+  NFormItem,
+  NImage,
+  NInput,
+  NModal,
+  NSpace,
+  NUpload,
+  useMessage,
+} from 'naive-ui'
 
 const props = defineProps({
   show: { type: Boolean, required: true },
@@ -22,14 +33,16 @@ const documentationPreviewUrl = ref('')
 const compressingImage = ref(false)
 
 function resolveMenteeId(item) {
-  return item?.mentee_id
-    ?? item?.nindyamaya_user_id
-    ?? item?.user_id
-    ?? item?.menteeId
-    ?? item?.mentee?.id
-    ?? item?.mentee?.nindyamaya_user_id
-    ?? item?.user?.id
-    ?? item?.id
+  return (
+    item?.mentee_id ??
+    item?.nindyamaya_user_id ??
+    item?.user_id ??
+    item?.menteeId ??
+    item?.mentee?.id ??
+    item?.mentee?.nindyamaya_user_id ??
+    item?.user?.id ??
+    item?.id
+  )
 }
 
 function clearPreviewUrl() {
@@ -54,7 +67,12 @@ watch(
       const menteeId = resolveMenteeId(item)
       menteeAttendance.push({
         mentee_id: menteeId,
-        name: item.name ?? item.full_name ?? item.mentee?.name ?? item.user?.name ?? `Mentee #${menteeId ?? '-'}`,
+        name:
+          item.name ??
+          item.full_name ??
+          item.mentee?.name ??
+          item.user?.name ??
+          `Mentee #${menteeId ?? '-'}`,
         is_attend: Boolean(item.is_attend ?? item.attended ?? item.isAttend),
       })
     }
@@ -84,7 +102,7 @@ async function handleUploadChange({ file }) {
   }
 
   if (!rawFile.type?.startsWith('image/')) {
-    message.error('Please choose an image file')
+    message.error('Pilih file gambar.')
     clearPreviewUrl()
     form.documentationFile = null
     return
@@ -105,7 +123,7 @@ async function handleUploadChange({ file }) {
     form.documentationFile = webpFile
     documentationPreviewUrl.value = URL.createObjectURL(webpFile)
   } catch {
-    message.error('Failed to compress image')
+    message.error('Gagal memproses gambar.')
     clearPreviewUrl()
     form.documentationFile = null
   } finally {
@@ -119,7 +137,7 @@ function closeModal() {
 
 function submitFinish() {
   if (!form.documentationFile) {
-    message.error('Documentation image is required')
+    message.error('Gambar dokumentasi wajib diunggah.')
     return
   }
 
@@ -131,7 +149,7 @@ function submitFinish() {
     .filter((item) => item.mentee_id != null)
 
   if (!validAttendance.length) {
-    message.error('Attendance list is required')
+    message.error('Data kehadiran mentee belum tersedia.')
     return
   }
 
@@ -156,21 +174,22 @@ onBeforeUnmount(clearPreviewUrl)
   <n-modal
     :show="show"
     preset="card"
-    title="Finish Class"
+    title="Selesaikan Sesi"
+    class="!rounded-2xl"
     style="width: min(560px, calc(100vw - 32px))"
     @update:show="emit('update:show', $event)"
   >
     <n-form label-placement="top">
-      <n-form-item label="Notes">
+      <n-form-item label="Catatan">
         <n-input
           v-model:value="form.notes"
           type="textarea"
           :autosize="{ minRows: 3, maxRows: 6 }"
-          placeholder="Add final class notes"
+          placeholder="Tambahkan catatan sesi"
         />
       </n-form-item>
 
-      <n-form-item label="Documentation Image">
+      <n-form-item label="Gambar Dokumentasi">
         <n-space vertical :size="10" class="w-full">
           <n-upload
             :max="1"
@@ -180,8 +199,8 @@ onBeforeUnmount(clearPreviewUrl)
             :disabled="compressingImage || submitting"
             @change="handleUploadChange"
           >
-            <n-button secondary :loading="compressingImage">
-              {{ compressingImage ? 'Compressing...' : 'Choose Image' }}
+            <n-button class="!rounded-xl" secondary :loading="compressingImage">
+              {{ compressingImage ? 'Memproses...' : 'Pilih gambar' }}
             </n-button>
           </n-upload>
           <n-image
@@ -193,7 +212,7 @@ onBeforeUnmount(clearPreviewUrl)
         </n-space>
       </n-form-item>
 
-      <n-form-item label="Mentee Attendance">
+      <n-form-item label="Kehadiran Mentee">
         <n-space vertical :size="8" class="w-full">
           <n-checkbox
             v-for="(item, idx) in menteeAttendance"
@@ -203,20 +222,21 @@ onBeforeUnmount(clearPreviewUrl)
             {{ item.name }}
           </n-checkbox>
           <p v-if="!menteeAttendance.length" class="text-sm text-(--grey-color)">
-            No mentee data available for this session.
+            Data mentee untuk sesi ini belum tersedia.
           </p>
         </n-space>
       </n-form-item>
 
       <n-space justify="end">
-        <n-button secondary @click="closeModal">Cancel</n-button>
+        <n-button class="!rounded-xl" secondary @click="closeModal">Batal</n-button>
         <n-button
+          class="!rounded-xl"
           type="primary"
           :loading="submitting || compressingImage"
           :disabled="compressingImage"
           @click="submitFinish"
         >
-          Finish Class
+          Selesaikan Sesi
         </n-button>
       </n-space>
     </n-form>

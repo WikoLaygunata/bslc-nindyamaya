@@ -1,6 +1,6 @@
 <script setup>
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { EllipsisVertical } from '@vicons/ionicons5'
+import { CheckmarkCircleOutline, EllipsisVertical } from '@vicons/ionicons5'
 import {
   NButton,
   NCard,
@@ -32,6 +32,7 @@ const submitting = ref(false)
 const finishing = ref(false)
 const sessions = ref([])
 const search = ref('')
+const activeFilter = ref('all')
 const showModal = ref(false)
 const showDetailModal = ref(false)
 const showFinishModal = ref(false)
@@ -65,22 +66,74 @@ function formatSchedule(row) {
 
   const startDate = new Date(row.start_time)
   const endDate = new Date(row.end_time)
-  const date = startDate.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
+  const date = startDate.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
+    timeZone: 'Asia/Jakarta',
   })
-  const startTime = startDate.toLocaleTimeString([], {
+  const startTime = startDate.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
+    timeZone: 'Asia/Jakarta',
   })
-  const endTime = endDate.toLocaleTimeString([], {
+  const endTime = endDate.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
+    timeZone: 'Asia/Jakarta',
   })
-  return `${date} (${startTime} - ${endTime})`
+  return `${date}, ${startTime}–${endTime} WIB`
+}
+
+function renderSchedule(row) {
+  const [date, time] = formatSchedule(row).split(', ')
+  if (!time) return date
+
+  return h('div', { class: 'flex flex-col items-center gap-1' }, [
+    h('span', { class: 'text-sm text-(--dark-color)' }, date),
+    h(
+      'span',
+      {
+        class:
+          'rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold tabular-nums text-(--green-color)',
+      },
+      time,
+    ),
+  ])
+}
+
+function formatSessionDate(row) {
+  if (!row.start_time) return 'Jadwal belum tersedia'
+  return new Date(row.start_time).toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  })
+}
+
+function formatSessionTime(row) {
+  if (!row.start_time || !row.end_time) return ''
+  const options = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'Asia/Jakarta',
+  }
+  const start = new Date(row.start_time).toLocaleTimeString('id-ID', options)
+  const end = new Date(row.end_time).toLocaleTimeString('id-ID', options)
+  return `${start}–${end}`
+}
+
+function getSessionStatusLabel(status) {
+  return isFinishedStatus(status) ? 'Selesai' : 'Direncanakan'
+}
+
+function getSessionStatusType(status) {
+  return isFinishedStatus(status) ? 'success' : 'warning'
 }
 
 function handleRowClick(row) {
@@ -91,49 +144,74 @@ function handleRowClick(row) {
 function rowProps(row) {
   return {
     style: 'cursor: pointer;',
+    tabindex: 0,
+    onKeydown: (event) => {
+      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault()
+        handleRowClick(row)
+      }
+    },
     onClick: () => handleRowClick(row),
   }
 }
 
+const statusFilters = computed(() => [
+  { key: 'all', label: 'Semua', count: sessions.value.length },
+  {
+    key: 'planned',
+    label: 'Direncanakan',
+    count: sessions.value.filter((row) => !isFinishedStatus(row.status)).length,
+  },
+  {
+    key: 'finished',
+    label: 'Selesai',
+    count: sessions.value.filter((row) => isFinishedStatus(row.status)).length,
+  },
+])
+
 const filteredSessions = computed(() => {
   const keyword = search.value.trim().toLowerCase()
-  if (!keyword) {
-    return sessions.value
-  }
-
   return sessions.value.filter((row) => {
-    const searchable = [row.topic, formatSchedule(row), row.status]
+    const matchesFilter =
+      activeFilter.value === 'all' ||
+      (activeFilter.value === 'planned' && !isFinishedStatus(row.status)) ||
+      (activeFilter.value === 'finished' && isFinishedStatus(row.status))
+    const searchable = [row.topic, row.location, formatSchedule(row), row.status, row.notes]
 
-    return searchable.some((value) =>
-      String(value ?? '')
-        .toLowerCase()
-        .includes(keyword),
+    return (
+      matchesFilter &&
+      (!keyword ||
+        searchable.some((value) =>
+          String(value ?? '')
+            .toLowerCase()
+            .includes(keyword),
+        ))
     )
   })
 })
 
 const columns = [
   {
-    title: 'No',
+    title: 'No.',
     key: 'no',
     width: 50,
     align: 'center',
     render: (_, index) => index + 1,
   },
   {
-    title: 'Course',
+    title: 'Topik',
     key: 'topic',
     width: 220,
     titleAlign: 'center',
     sorter: (a, b) => a.topic.localeCompare(b.topic),
   },
   {
-    title: 'Schedule',
+    title: 'Jadwal',
     key: 'schedule',
     titleAlign: 'center',
     width: 220,
     sorter: (a, b) => new Date(a.start_time ?? 0).getTime() - new Date(b.start_time ?? 0).getTime(),
-    render: (row) => formatSchedule(row),
+    render: (row) => renderSchedule(row),
   },
   {
     title: 'Platform',
@@ -142,21 +220,21 @@ const columns = [
     titleAlign: 'center',
   },
   {
-    title: 'Created At',
+    title: 'Dibuat',
     key: 'created_at',
     width: 130,
     titleAlign: 'center',
     render: (row) =>
       row.created_at
-        ? new Date(row.created_at).toLocaleString('en-GB', {
-            day: '2-digit',
+        ? new Date(row.created_at).toLocaleString('id-ID', {
+            day: 'numeric',
             month: 'short',
             year: 'numeric',
           })
         : '-',
   },
   {
-    title: 'Notes',
+    title: 'Catatan',
     key: 'notes',
     width: 220,
     titleAlign: 'center',
@@ -172,7 +250,7 @@ const columns = [
       ),
   },
   {
-    title: 'Documentation',
+    title: 'Dokumentasi',
     key: 'documentation_path',
     width: 120,
     align: 'center',
@@ -189,18 +267,20 @@ const columns = [
     },
   },
   {
-    title: 'Status',
+    title: 'Status sesi',
     key: 'status',
     width: 120,
     align: 'center',
     render: (row) => {
-      const status = String(row.status ?? 'Pending')
-      const type = isFinishedStatus(status) ? 'success' : 'warning'
-      return h(NTag, { type, size: 'small', round: true }, { default: () => status })
+      return h(
+        NTag,
+        { type: getSessionStatusType(row.status), size: 'small', round: true },
+        { default: () => getSessionStatusLabel(row.status) },
+      )
     },
   },
   {
-    title: 'Attendees',
+    title: 'Kehadiran Mentee',
     key: 'attendance',
     width: 260,
     titleAlign: 'center',
@@ -225,7 +305,7 @@ const columns = [
                   h(
                     NButton,
                     { size: 'tiny', tertiary: true, type: item.is_attend ? 'success' : 'warning' },
-                    { default: () => (item.is_attend ? 'Attend' : 'Not Attend') },
+                    { default: () => (item.is_attend ? 'Hadir' : 'Belum hadir') },
                   ),
                 ],
               ),
@@ -236,41 +316,62 @@ const columns = [
   },
   // { title: 'Notes', key: 'notes' },
   {
-    title: 'Action',
+    title: 'Aksi',
     key: 'actions',
     align: 'center',
-    width: 80,
+    width: 230,
     render: (row) =>
-      h(
-        NDropdown,
-        {
-          trigger: 'click',
-          placement: 'bottom-end',
-          options: [
-            { label: 'Edit', key: 'action-edit' },
-            { label: 'Finish Class', key: 'action-finish', disabled: isFinishedStatus(row.status) },
-            { label: 'Delete', key: 'action-delete' },
-          ],
-          onSelect: (key) => handleDataAction(row, key),
-        },
-        {
-          default: () =>
-            h(
-              NButton,
-              {
-                size: 'small',
-                tertiary: true,
-                onClick: (event) => event.stopPropagation(),
-              },
-              {
-                icon: () =>
-                  h(NIcon, null, {
-                    default: () => h(EllipsisVertical),
-                  }),
-              },
-            ),
-        },
-      ),
+      h(NSpace, { size: 8, justify: 'center', align: 'center', wrap: false }, [
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'success',
+            secondary: true,
+            disabled: isFinishedStatus(row.status),
+            'aria-label': `Selesaikan sesi ${row.topic}`,
+            onClick: (event) => {
+              event.stopPropagation()
+              openFinish(row)
+            },
+          },
+          {
+            icon: () =>
+              h(NIcon, null, {
+                default: () => h(CheckmarkCircleOutline),
+              }),
+            default: () => (isFinishedStatus(row.status) ? 'Selesai' : 'Selesaikan'),
+          },
+        ),
+        h(
+          NDropdown,
+          {
+            trigger: 'click',
+            placement: 'bottom-end',
+            options: [
+              { label: 'Edit', key: 'action-edit' },
+              { label: 'Hapus', key: 'action-delete' },
+            ],
+            onSelect: (key) => handleDataAction(row, key),
+          },
+          {
+            default: () =>
+              h(
+                NButton,
+                {
+                  size: 'small',
+                  secondary: true,
+                  class: '!rounded-lg !border-gray-200 !px-3',
+                  'aria-label': `Buka aksi untuk sesi ${row.topic}`,
+                  onClick: (event) => event.stopPropagation(),
+                },
+                {
+                  default: () => 'Aksi',
+                },
+              ),
+          },
+        ),
+      ]),
   },
 ]
 
@@ -291,6 +392,10 @@ function resolveMenteeId(item) {
   )
 }
 
+function isAttended(value) {
+  return value === true || value === 1 || ['1', 'true', 'yes'].includes(String(value).toLowerCase())
+}
+
 function normalizeSession(item) {
   const mappedAttendance = (item.attendance ?? item.mentees ?? item.participants ?? []).map(
     (entry) => {
@@ -305,7 +410,7 @@ function normalizeSession(item) {
           entry.mentee?.full_name ??
           entry.user?.name ??
           `Mentee #${menteeId ?? '-'}`,
-        is_attend: Boolean(entry.is_attend ?? entry.attended ?? entry.isAttend),
+        is_attend: isAttended(entry.is_attend ?? entry.attended ?? entry.isAttend),
       }
     },
   )
@@ -368,7 +473,7 @@ function openEdit(row) {
 
 function openFinish(row) {
   if (isFinishedStatus(row?.status)) {
-    message.info('This session is already finished')
+    message.info('Sesi ini sudah selesai.')
     return
   }
   selectedFinishSession.value = row
@@ -426,10 +531,10 @@ async function submitForm() {
     const payload = mapFormPayload()
     if (editingId.value) {
       await updateMentoringSession(editingId.value, payload)
-      message.success('Session updated')
+      message.success('Sesi berhasil diperbarui.')
     } else {
       await createMentoringSession(payload)
-      message.success('Session created')
+      message.success('Sesi berhasil dibuat.')
     }
     showModal.value = false
     await fetchSessions()
@@ -469,14 +574,14 @@ async function submitFinishSession(payload) {
   }
 
   if (!(payload?.formData instanceof FormData)) {
-    message.error('Invalid finish session payload')
+    message.error('Data sesi tidak valid.')
     return
   }
 
   try {
     finishing.value = true
     await finishMentoringSession(selectedFinishSession.value.id, payload.formData)
-    message.success('Mentoring session finished successfully')
+    message.success('Sesi mentoring berhasil diselesaikan.')
     showFinishModal.value = false
     selectedFinishSession.value = null
     await fetchSessions()
@@ -489,16 +594,16 @@ async function submitFinishSession(payload) {
 
 function confirmDelete(id) {
   const d = dialog.warning({
-    title: 'Delete Session',
-    content: 'Are you sure you want to delete this mentoring session?',
-    positiveText: 'Delete',
-    negativeText: 'Cancel',
+    title: 'Hapus Sesi',
+    content: 'Apakah Anda yakin ingin menghapus sesi mentoring ini?',
+    positiveText: 'Hapus',
+    negativeText: 'Batal',
     positiveButtonProps: { loading: false },
     onPositiveClick: async () => {
       d.positiveButtonProps.loading = true
       try {
         await deleteMentoringSession(id)
-        message.success('Session deleted')
+        message.success('Sesi berhasil dihapus.')
         await fetchSessions()
       } catch (error) {
         message.error(error.message)
@@ -516,42 +621,174 @@ function handleDataAction(row, key) {
   }
   if (key === 'action-delete') {
     confirmDelete(row.id)
-    return
-  }
-  if (key === 'action-finish') {
-    openFinish(row)
   }
 }
 
 function formatAttendeesSummary(session) {
   const attendance = session?.attendance ?? []
   const attendedCount = attendance.filter((item) => item.is_attend).length
-  return `${attendedCount} of ${attendance.length}`
+  return `${attendedCount} dari ${attendance.length}`
 }
 
 onMounted(fetchSessions)
 </script>
 
 <template>
-  <n-card title="Mentoring Sessions" :bordered="false" class="rounded-2xl shadow-sm">
-    <n-space vertical :size="14">
-      <n-space justify="space-between">
-        <p class="text-sm text-(--grey-color)">Manage mentoring sessions here.</p>
-        <n-button type="primary" @click="openCreate">Create Session</n-button>
+  <section class="mx-auto max-w-7xl space-y-6">
+    <header>
+      <p class="text-sm font-medium text-(--green-color)">Rencanakan dan pantau</p>
+      <div class="mt-1 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-(--dark-color)">Sesi Mentoring</h1>
+          <p class="mt-1 text-sm text-gray-500">
+            Buat sesi, informasikan mentee, dan pantau perkembangannya.
+          </p>
+        </div>
+        <n-button class="!rounded-xl" type="primary" size="large" @click="openCreate">
+          Buat sesi
+        </n-button>
+      </div>
+    </header>
+    <n-card :bordered="false" class="!rounded-2xl shadow-sm ring-1 ring-gray-100">
+      <n-space vertical :size="16">
+        <n-input
+          v-model:value="search"
+          clearable
+          round
+          aria-label="Cari sesi mentoring"
+          placeholder="Cari topik, platform, jadwal, atau catatan"
+        />
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Filter status sesi">
+          <button
+            v-for="filter in statusFilters"
+            :key="filter.key"
+            type="button"
+            class="rounded-full border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--green-color)"
+            :class="
+              activeFilter === filter.key
+                ? 'border-(--green-color) bg-(--green-color) text-white'
+                : 'border-gray-200 bg-white text-gray-600 hover:border-emerald-200 hover:bg-emerald-50'
+            "
+            :aria-pressed="activeFilter === filter.key"
+            @click="activeFilter = filter.key"
+          >
+            {{ filter.label }}
+            <span class="ml-1 tabular-nums opacity-80">{{ filter.count }}</span>
+          </button>
+          <span class="ml-auto self-center text-xs text-gray-500" aria-live="polite">
+            {{ filteredSessions.length }} dari {{ sessions.length }} sesi
+          </span>
+        </div>
+        <div class="hidden overflow-hidden rounded-xl border border-gray-100 md:block">
+          <n-data-table
+            :columns="columns"
+            :data="filteredSessions"
+            :loading="loading"
+            :row-props="rowProps"
+            :single-line="false"
+            size="small"
+            :scroll-x="1700"
+          />
+        </div>
+        <div class="space-y-3 md:hidden" aria-label="Daftar sesi mentoring">
+          <article
+            v-for="session in filteredSessions"
+            :key="session.id"
+            class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h2 class="break-words font-semibold text-(--dark-color)">{{ session.topic }}</h2>
+                <p class="mt-1 truncate text-sm text-gray-500">{{ session.location }}</p>
+              </div>
+              <n-tag :type="getSessionStatusType(session.status)" size="small" round>
+                {{ getSessionStatusLabel(session.status) }}
+              </n-tag>
+            </div>
+            <div class="mt-4 rounded-xl bg-emerald-50/70 p-3">
+              <p class="text-xs font-medium uppercase tracking-wide text-(--green-color)">Jadwal</p>
+              <p class="mt-1 text-sm font-semibold text-(--dark-color)">
+                {{ formatSessionDate(session) }}
+              </p>
+              <p
+                v-if="formatSessionTime(session)"
+                class="mt-0.5 text-sm tabular-nums text-gray-600"
+              >
+                {{ formatSessionTime(session) }} WIB
+              </p>
+            </div>
+            <div class="mt-3 flex items-center justify-between text-sm">
+              <span class="text-gray-500">Kehadiran mentee</span>
+              <span class="font-medium tabular-nums text-(--dark-color)">
+                {{ formatAttendeesSummary(session) }}
+              </span>
+            </div>
+            <details class="mt-3 rounded-xl border border-gray-100 px-3 py-2">
+              <summary
+                class="cursor-pointer list-none text-sm font-medium text-(--green-color) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--green-color)"
+              >
+                Lihat catatan sesi
+              </summary>
+              <p
+                class="mt-2 whitespace-pre-line border-t border-gray-100 pt-2 text-sm text-gray-600"
+              >
+                {{ session.notes || 'Belum ada catatan.' }}
+              </p>
+            </details>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <n-button
+                class="!min-h-11 !rounded-xl"
+                secondary
+                :aria-label="`Lihat detail sesi ${session.topic}`"
+                @click="handleRowClick(session)"
+              >
+                Detail
+              </n-button>
+              <n-dropdown
+                trigger="click"
+                placement="bottom-end"
+                :options="[
+                  { label: 'Edit', key: 'action-edit' },
+                  { label: 'Hapus', key: 'action-delete' },
+                ]"
+                @select="handleDataAction(session, $event)"
+              >
+                <n-button
+                  class="!min-h-11 !rounded-xl !border-gray-200 !bg-white !text-gray-700 hover:!border-emerald-200 hover:!bg-emerald-50"
+                  secondary
+                  :aria-label="`Buka aksi untuk sesi ${session.topic}`"
+                >
+                  <template #icon>
+                    <n-icon><ellipsis-vertical /></n-icon>
+                  </template>
+                  Aksi
+                </n-button>
+              </n-dropdown>
+              <n-button
+                class="!col-span-2 !min-h-11 !rounded-xl"
+                type="success"
+                secondary
+                :disabled="isFinishedStatus(session.status)"
+                :aria-label="`Selesaikan sesi ${session.topic}`"
+                @click="openFinish(session)"
+              >
+                <template #icon>
+                  <n-icon><checkmark-circle-outline /></n-icon>
+                </template>
+                {{ isFinishedStatus(session.status) ? 'Sesi selesai' : 'Selesaikan sesi' }}
+              </n-button>
+            </div>
+          </article>
+          <div
+            v-if="!loading && !filteredSessions.length"
+            class="rounded-2xl border border-dashed border-gray-200 px-5 py-10 text-center text-sm text-gray-500"
+          >
+            Tidak ada sesi yang cocok dengan pencarian atau filter ini.
+          </div>
+        </div>
       </n-space>
-      <n-input v-model:value="search" clearable placeholder="Search course, status, or schedule" />
-
-      <n-data-table
-        :columns="columns"
-        :data="filteredSessions"
-        :loading="loading"
-        :row-props="rowProps"
-        :single-line="false"
-        size="small"
-        :scroll-x="1700"
-      />
-    </n-space>
-  </n-card>
+    </n-card>
+  </section>
 
   <session-form-modal
     :show="showModal"
@@ -569,54 +806,110 @@ onMounted(fetchSessions)
   <n-modal
     v-model:show="showDetailModal"
     preset="card"
-    title="Session Detail"
+    title="Detail Sesi"
     size="small"
     :auto-focus="false"
     style="width: min(420px, calc(100vw - 32px))"
   >
     <div v-if="selectedSession" class="space-y-4 py-1">
-      <div class="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
-        <span class="text-(--grey-color)">Course</span>
+      <div class="grid grid-cols-[100px_1fr] gap-x-3 gap-y-3 rounded-xl bg-gray-50 p-4 text-sm">
+        <span class="text-(--grey-color)">Topik</span>
         <span class="font-medium text-(--dark-color)">{{ selectedSession.topic || '-' }}</span>
 
         <span class="text-(--grey-color)">Platform</span>
         <span class="text-(--dark-color)">{{ selectedSession.location || '-' }}</span>
 
-        <span class="text-(--grey-color)">Schedule</span>
+        <span class="text-(--grey-color)">Jadwal</span>
         <span class="text-(--dark-color)">{{ formatSchedule(selectedSession) }}</span>
 
-        <span class="text-(--grey-color)">Status</span>
-        <span class="text-(--dark-color)">{{ selectedSession.status || '-' }}</span>
+        <span class="text-(--grey-color)">Status sesi</span>
+        <span class="text-(--dark-color)">{{ getSessionStatusLabel(selectedSession.status) }}</span>
 
-        <span class="text-(--grey-color)">Attendees</span>
-        <span class="text-(--dark-color)">{{ formatAttendeesSummary(selectedSession) }}</span>
+        <span class="text-(--grey-color)">Kehadiran</span>
+        <span class="text-(--dark-color)"
+          >{{ formatAttendeesSummary(selectedSession) }} mentee hadir</span
+        >
 
-        <span class="text-(--grey-color)">Created At</span>
+        <span class="text-(--grey-color)">Dibuat</span>
         <span class="text-(--dark-color)">
           {{
             selectedSession.created_at
-              ? new Date(selectedSession.created_at).toLocaleString([], {
+              ? new Date(selectedSession.created_at).toLocaleString('id-ID', {
                   dateStyle: 'short',
                   timeStyle: 'short',
-                  hour12: false,
+                  hourCycle: 'h23',
+                  timeZone: 'Asia/Jakarta',
                 })
               : '-'
           }}
         </span>
       </div>
 
-      <div class="space-y-1 text-sm">
-        <p class="text-(--grey-color)">Notes</p>
-        <p class="rounded-md bg-gray-50 px-3 py-2 text-(--dark-color) whitespace-pre-line">
-          {{ selectedSession.notes || '-' }}
+      <div class="rounded-xl border border-gray-100 px-4 py-3">
+        <p class="text-sm font-semibold text-(--green-color)">Catatan sesi</p>
+        <p class="mt-2 whitespace-pre-line border-t border-gray-100 pt-3 text-sm text-(--dark-color)">
+          {{ selectedSession.notes || 'Belum ada catatan.' }}
         </p>
       </div>
 
+      <details class="rounded-xl border border-gray-100 px-4 py-3">
+        <summary
+          class="cursor-pointer text-sm font-semibold text-(--green-color) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--green-color)"
+        >
+          Daftar kehadiran ({{ selectedSession.attendance.length }})
+        </summary>
+        <div class="mt-3 space-y-4 border-t border-gray-100 pt-3">
+          <div>
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Hadir ({{ selectedSession.attendance.filter((item) => item.is_attend).length }})
+            </p>
+            <ul
+              v-if="selectedSession.attendance.some((item) => item.is_attend)"
+              class="space-y-1.5"
+            >
+              <li
+                v-for="(item, index) in selectedSession.attendance.filter(
+                  (entry) => entry.is_attend,
+                )"
+                :key="`present-${item.mentee_id ?? item.name}-${index}`"
+                class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-(--dark-color)"
+              >
+                {{ item.name }}
+              </li>
+            </ul>
+            <p v-else class="text-sm text-gray-500">Belum ada mentee yang hadir.</p>
+          </div>
+          <div>
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+              Tidak hadir ({{
+                selectedSession.attendance.filter((item) => !item.is_attend).length
+              }})
+            </p>
+            <ul
+              v-if="selectedSession.attendance.some((item) => !item.is_attend)"
+              class="space-y-1.5"
+            >
+              <li
+                v-for="(item, index) in selectedSession.attendance.filter(
+                  (entry) => !entry.is_attend,
+                )"
+                :key="`absent-${item.mentee_id ?? item.name}-${index}`"
+                class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-(--dark-color)"
+              >
+                {{ item.name }}
+              </li>
+            </ul>
+            <p v-else class="text-sm text-gray-500">Tidak ada mentee yang absen.</p>
+          </div>
+        </div>
+      </details>
+
       <div class="space-y-1 text-sm">
-        <p class="text-(--grey-color)">Documentation</p>
+        <p class="text-(--grey-color)">Dokumentasi</p>
         <n-image
           v-if="selectedSession.documentation_path"
           :src="baseUrl + selectedSession.documentation_path"
+          alt="Dokumentasi sesi mentoring"
           width="140"
           object-fit="cover"
         />

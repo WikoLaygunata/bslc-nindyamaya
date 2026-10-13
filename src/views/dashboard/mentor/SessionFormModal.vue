@@ -33,11 +33,11 @@ const emit = defineEmits([
 const message = useMessage()
 const compressingImage = ref(false)
 
-const title = computed(() => (props.isEditing ? 'Edit Session' : 'Create Session'))
+const title = computed(() => (props.isEditing ? 'Edit Sesi' : 'Buat Sesi'))
 const saveLoading = computed(() => props.submitting || compressingImage.value)
 const statusOptions = [
-  { label: 'Pending', value: 'Pending' },
-  { label: 'Finished', value: 'Finished' },
+  { label: 'Direncanakan', value: 'Pending' },
+  { label: 'Selesai', value: 'Finished' },
 ]
 
 function closeModal() {
@@ -66,7 +66,7 @@ async function handleUploadChange({ file }) {
   }
 
   if (!rawFile.type?.startsWith('image/')) {
-    message.error('Please choose an image file')
+    message.error('Pilih file gambar.')
     emit('documentation-change', null)
     return
   }
@@ -83,7 +83,7 @@ async function handleUploadChange({ file }) {
     const compressedFile = await imageCompression(rawFile, options)
     emit('documentation-change', toWebpFile(compressedFile, rawFile))
   } catch {
-    message.error('Failed to compress image')
+    message.error('Gagal memproses gambar.')
     emit('documentation-change', null)
   } finally {
     compressingImage.value = false
@@ -104,26 +104,26 @@ function updateFormField(key, value) {
     :show="show"
     preset="card"
     :title="title"
-    class="max-w-xl"
+    class="!max-w-xl !rounded-2xl"
     @update:show="emit('update:show', $event)"
   >
     <n-form label-placement="top">
-      <n-form-item label="Course Name">
+      <n-form-item label="Nama Sesi">
         <n-input
           :value="form.course_name"
-          placeholder="e.g. Struktur Data"
+          placeholder="Contoh: Struktur Data"
           @update:value="updateFormField('course_name', $event)"
         />
       </n-form-item>
       <n-form-item label="Platform">
         <n-input
           :value="form.platform"
-          placeholder="e.g. Zoom / Google Meet"
+          placeholder="Contoh: Zoom / Google Meet"
           @update:value="updateFormField('platform', $event)"
         />
       </n-form-item>
       <div class="grid gap-3 md:grid-cols-2">
-        <n-form-item label="Start Time">
+        <n-form-item label="Waktu Mulai">
           <n-date-picker
             :value="form.start_time"
             type="datetime"
@@ -132,7 +132,7 @@ function updateFormField(key, value) {
             @update:value="updateFormField('start_time', $event)"
           />
         </n-form-item>
-        <n-form-item label="End Time">
+        <n-form-item label="Waktu Selesai">
           <n-date-picker
             :value="form.end_time"
             type="datetime"
@@ -144,12 +144,12 @@ function updateFormField(key, value) {
       </div>
 
       <template v-if="isEditing">
-        <n-form-item label="Notes (optional)">
+        <n-form-item label="Catatan (opsional)">
           <n-input
             :value="form.notes"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 4 }"
-            placeholder="Session notes"
+            placeholder="Catatan sesi"
             @update:value="updateFormField('notes', $event)"
           />
         </n-form-item>
@@ -160,7 +160,7 @@ function updateFormField(key, value) {
             @update:value="updateFormField('status', $event)"
           />
         </n-form-item>
-        <n-form-item label="Documentation Image (optional)">
+        <n-form-item label="Dokumentasi (opsional)">
           <n-space vertical :size="10" class="w-full">
             <n-upload
               :max="1"
@@ -171,8 +171,8 @@ function updateFormField(key, value) {
               @change="handleUploadChange"
               @remove="handleUploadRemove"
             >
-              <n-button secondary :loading="compressingImage">
-                {{ compressingImage ? 'Compressing...' : 'Choose Image' }}
+              <n-button class="!rounded-xl" secondary :loading="compressingImage">
+                {{ compressingImage ? 'Memproses...' : 'Pilih gambar' }}
               </n-button>
             </n-upload>
             <n-image
@@ -186,9 +186,15 @@ function updateFormField(key, value) {
       </template>
 
       <n-space justify="end">
-        <n-button secondary @click="closeModal">Cancel</n-button>
-        <n-button type="primary" :loading="saveLoading" :disabled="compressingImage" @click="emit('submit')">
-          Save
+        <n-button class="!rounded-xl" secondary @click="closeModal">Batal</n-button>
+        <n-button
+          class="!rounded-xl"
+          type="primary"
+          :loading="saveLoading"
+          :disabled="compressingImage"
+          @click="emit('submit')"
+        >
+          Simpan
         </n-button>
       </n-space>
     </n-form>

@@ -43,7 +43,7 @@ async function handleSelectImage(event) {
   }
 
   if (!file.type.startsWith('image/')) {
-    message.error('Please choose an image file')
+    message.error('Pilih file gambar.')
     event.target.value = ''
     return
   }
@@ -69,9 +69,9 @@ async function handleSelectImage(event) {
       ...nextUser,
     })
 
-    message.success('Profile image updated')
+    message.success('Foto profil berhasil diperbarui.')
   } catch (error) {
-    message.error(error?.message ?? 'Failed to upload profile image')
+    message.error(error?.message ?? 'Gagal mengunggah foto profil.')
   } finally {
     uploading.value = false
     compressingImage.value = false
@@ -81,23 +81,30 @@ async function handleSelectImage(event) {
 </script>
 
 <template>
-  <section class="space-y-4">
-    <n-card :bordered="false" class="rounded-2xl shadow-sm">
-      <div class="mb-5 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-(--dark-color)">Profile</h2>
+  <section class="mx-auto max-w-7xl space-y-6">
+    <header>
+      <p class="text-sm font-medium text-(--green-color)">Akun Anda</p>
+      <div class="mt-1 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-(--dark-color)">Profil</h1>
+          <p class="mt-1 text-sm text-gray-500">Atur foto dan lihat informasi akun Anda.</p>
+        </div>
         <n-tag size="small" round type="success">{{ roleLabel }}</n-tag>
       </div>
+    </header>
 
+    <n-card :bordered="false" class="!rounded-2xl shadow-sm ring-1 ring-gray-100">
       <div class="flex flex-col gap-6 md:flex-row md:items-start">
         <div
-          class="flex w-full flex-col items-center gap-3 rounded-xl border border-gray-100 p-4 md:w-56"
+          class="flex w-full flex-col items-center gap-4 rounded-2xl bg-gradient-to-br from-[#f5faf7] to-white p-6 ring-1 ring-gray-100 md:w-64"
         >
           <div
             v-if="imageUrl"
-            class="h-[120px] w-[120px] overflow-hidden rounded-full border border-gray-200"
+            class="h-[132px] w-[132px] overflow-hidden rounded-full border-4 border-white shadow-lg ring-1 ring-gray-200"
           >
             <n-image
               :src="imageUrl"
+              alt="Foto profil pengguna"
               width="120"
               height="120"
               :img-props="{
@@ -111,7 +118,7 @@ async function handleSelectImage(event) {
           </div>
           <div
             v-else
-            class="flex h-[120px] w-[120px] items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-3xl font-semibold text-(--grey-color)"
+            class="flex h-[132px] w-[132px] items-center justify-center rounded-full border-4 border-white bg-emerald-50 text-3xl font-semibold text-(--green-color) shadow-lg ring-1 ring-gray-200"
           >
             {{ (user.name || 'U').slice(0, 1).toUpperCase() }}
           </div>
@@ -123,35 +130,48 @@ async function handleSelectImage(event) {
             @change="handleSelectImage"
           />
           <n-button
+            class="!rounded-xl"
             type="primary"
             :loading="uploading || compressingImage"
             :disabled="uploading || compressingImage"
             @click="triggerFilePicker"
           >
-            {{ uploading || compressingImage ? 'Processing...' : 'Change Profile Image' }}
+            {{ uploading || compressingImage ? 'Memproses...' : 'Ubah foto profil' }}
           </n-button>
         </div>
 
         <div class="grid flex-1 gap-3 sm:grid-cols-2">
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <p class="text-xs text-(--grey-color)">Name</p>
-            <p class="mt-1 text-sm font-medium text-(--dark-color)">{{ user.name || '-' }}</p>
+          <div
+            class="rounded-xl border border-gray-100 bg-white p-4 transition-colors hover:bg-gray-50"
+          >
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Nama</p>
+            <p class="mt-2 break-words text-sm font-semibold text-(--dark-color)">
+              {{ user.name || '-' }}
+            </p>
           </div>
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <p class="text-xs text-(--grey-color)">Email</p>
-            <p class="mt-1 text-sm text-(--dark-color)">{{ user.email || '-' }}</p>
+          <div
+            class="rounded-xl border border-gray-100 bg-white p-4 transition-colors hover:bg-gray-50"
+          >
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Email</p>
+            <p class="mt-2 break-words text-sm text-(--dark-color)">{{ user.email || '-' }}</p>
           </div>
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <p class="text-xs text-(--grey-color)">NIM</p>
-            <p class="mt-1 text-sm text-(--dark-color)">{{ user.nim || '-' }}</p>
+          <div
+            class="rounded-xl border border-gray-100 bg-white p-4 transition-colors hover:bg-gray-50"
+          >
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-400">NIM</p>
+            <p class="mt-2 break-words text-sm text-(--dark-color)">{{ user.nim || '-' }}</p>
           </div>
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <p class="text-xs text-(--grey-color)">Region</p>
-            <p class="mt-1 text-sm text-(--dark-color)">{{ user.region || '-' }}</p>
+          <div
+            class="rounded-xl border border-gray-100 bg-white p-4 transition-colors hover:bg-gray-50"
+          >
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Wilayah</p>
+            <p class="mt-2 break-words text-sm text-(--dark-color)">{{ user.region || '-' }}</p>
           </div>
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-3 sm:col-span-2">
-            <p class="text-xs text-(--grey-color)">Major</p>
-            <p class="mt-1 text-sm text-(--dark-color)">{{ user.major || '-' }}</p>
+          <div
+            class="rounded-xl border border-gray-100 bg-white p-4 transition-colors hover:bg-gray-50 sm:col-span-2"
+          >
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Jurusan</p>
+            <p class="mt-2 break-words text-sm text-(--dark-color)">{{ user.major || '-' }}</p>
           </div>
         </div>
       </div>
