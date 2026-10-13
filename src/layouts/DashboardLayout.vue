@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -23,13 +23,18 @@ function handleLogout() {
   const loginUrl = new URL('login', new URL(import.meta.env.BASE_URL, window.location.origin))
   window.location.replace(loginUrl.href)
 }
+
+window.addEventListener('auth:unauthorized', handleLogout)
+onBeforeUnmount(() => {
+  window.removeEventListener('auth:unauthorized', handleLogout)
+})
 </script>
 
 <template>
   <div class="min-h-screen bg-(--white-color)">
     <app-navbar @toggle-sidebar="handleToggleMobileSidebar" />
 
-    <div class="relative flex min-h-[calc(100vh-72px)]">
+    <div class="relative flex min-h-[calc(100dvh-72px)]">
       <aside class="hidden w-[260px] border-r border-gray-200 bg-white lg:block">
         <app-sidebar :role="role" :name="userName" @logout="handleLogout" />
       </aside>

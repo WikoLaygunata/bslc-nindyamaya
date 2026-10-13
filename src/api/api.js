@@ -39,6 +39,12 @@ function getFormDataHeaders() {
 
 async function parseResponse(response) {
   const text = await response.text()
+
+  if (response.status === 401) {
+    clearApiCache()
+    window.dispatchEvent(new Event('auth:unauthorized'))
+  }
+
   const data = text ? JSON.parse(text) : null
 
   if (!response.ok) {
